@@ -12,6 +12,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
       // Clear loading message
       activitiesList.innerHTML = "";
+      activitySelect.length = 1;
 
       // Populate activities list
       Object.entries(activities).forEach(([name, details]) => {
@@ -19,12 +20,62 @@ document.addEventListener("DOMContentLoaded", () => {
         activityCard.className = "activity-card";
 
         const spotsLeft = details.max_participants - details.participants.length;
+        const participantsList = details.participants
+          .map(
+            (participant) => `
+              <li>
+                <span>${participant}</span>
+                <button
+                  type="button"
+                  class="unregister-button"
+                  data-activity="${name}"
+                  data-email="${participant}"
+                  aria-label="Unregister ${participant} from ${name}"
+                  title="Unregister participant"
+                >&#128465;</button>
+              </li>`
+          )
+          .join("");
 
+
+  activitiesList.addEventListener("click", async (event) => {
+    const unregisterButton = event.target.closest(".unregister-button");
+    if (!unregisterButton) {
+      return;
+    }
+
+    const { activity, email } = unregisterButton.dataset;
+
+    try {
+      const response = await fetch(
+        `/activities/${encodeURIComponent(activity)}/signup?email=${encodeURIComponent(email)}`,
+        { method: "DELETE" }
+      );
+      const result = await response.json();
+
+      messageDiv.textContent = result.message || result.detail;
+      messageDiv.className = response.ok ? "success" : "error";
+      messageDiv.classList.remove("hidden");
+
+      if (response.ok) {
+        await fetchActivities();
+      }
+    } catch (error) {
+      messageDiv.textContent = "Failed to unregister. Please try again.";
+      messageDiv.className = "error";
+      messageDiv.classList.remove("hidden");
+      console.error("Error unregistering participant:", error);
+    }
+  });
         activityCard.innerHTML = `
           <h4>${name}</h4>
           <p>${details.description}</p>
           <p><strong>Schedule:</strong> ${details.schedule}</p>
           <p><strong>Availability:</strong> ${spotsLeft} spots left</p>
+          <div class="participants-section">
+            <h5>Participants</h5>
+            <ul class="participants-list">${participantsList}</ul>
+          </div>
         `;
 
         activitiesList.appendChild(activityCard);
@@ -62,6 +113,7 @@ document.addEventListener("DOMContentLoaded", () => {
         messageDiv.textContent = result.message;
         messageDiv.className = "success";
         signupForm.reset();
+        await fetchActivities();
       } else {
         messageDiv.textContent = result.detail || "An error occurred";
         messageDiv.className = "error";
